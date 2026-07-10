@@ -2865,6 +2865,8 @@ function App(){
   var s41=useState(-1); var guidedStep=s41[0]; var setGuidedStep=s41[1];
   var s42=useState(0); var guidedSecs=s42[0]; var setGuidedSecs=s42[1];
   var s43=useState(false); var guidedActive=s43[0]; var setGuidedActive=s43[1];
+  var s44=useState(200); var weightG=s44[0]; var setWeightG=s44[1];
+  var s45=useState("g"); var weightUnit=s45[0]; var setWeightUnit=s45[1];
 
   useEffect(function(){
     var mq=window.matchMedia("(prefers-color-scheme: dark)");
@@ -2990,7 +2992,7 @@ function App(){
 
   function openItem(it,catId){
     var savedIdx=favOut[it.name]!==undefined?favOut[it.name]:0;
-    setItem(it);setOutcomeIdx(savedIdx);setWoodfire(false);setDoneness("Medium");setCookFromFrozen(false);setPortions(settings.defaultPortions||2);
+    setItem(it);setOutcomeIdx(savedIdx);setWoodfire(false);setDoneness("Medium");setWeightG(200);setWeightUnit("g");setCookFromFrozen(false);setPortions(settings.defaultPortions||2);
     addToLog(it,catId);setExpandedSecs({timers:false,cook:false,nutrition:false,pairings:false,notes:false,rating:false});setRestActive(false);setRestSecs(0);
     setShowNoteInput(false);setNoteText(notes[it.name]||"");
     var entry={name:it.name,catId:catId,ts:Date.now()};
@@ -3034,6 +3036,10 @@ function App(){
   var fBg=fs?(isDark?fs.dkBg:fs.ltBg):null;
   var fBr=fs?(isDark?fs.dkBor:fs.ltBor):null;
   var isSteak=item?!!STEAKS[item.name]:false;
+  var isWeighted=item?!!WEIGHTED_CUTS[item.name]:false;
+  var weightData=isWeighted?unitPresets(item.name,weightUnit):{std:200,presets:[]};
+  var stdWeightG=weightData.std;
+  var weightPresetGs=weightData.presets;
   var isOfficial=item?!!OFFICIAL[item.name]:false;
   var isFav=item?favs.indexOf(item.name)>=0:false;
   var pp=cat?PELLET[cat]:null;
@@ -3376,7 +3382,7 @@ function App(){
               </div>
               <div style={{background:t.stIn,borderRadius:10,padding:"11px",border:"1px solid "+t.stBor}}>
                 <div style={{fontSize:10,color:t.lbl,textTransform:"uppercase",letterSpacing:"0.8px",marginBottom:3}}>Cook Time</div>
-                <div style={{fontSize:wfPortionTime.length>9?13:19,fontWeight:800,color:t.stTim,lineHeight:1.2,paddingTop:2}}>{isSteak&&oc.mode==="GRILL"?steakTime(doneness,oc.temp):wfPortionTime}</div>
+                <div style={{fontSize:wfPortionTime.length>9?13:19,fontWeight:800,color:t.stTim,lineHeight:1.2,paddingTop:2}}>{isSteak&&oc.mode==="GRILL"?weightAdjustedTime(steakTime(doneness,oc.temp),weightG,stdWeightG):isWeighted?weightAdjustedTime(wfPortionTime,weightG,stdWeightG):wfPortionTime}</div>
                 {(portions>1||cookFromFrozen)&&<div style={{fontSize:9,color:t.sub,marginTop:3}}>{cookFromFrozen&&portions>1?"❄️ frozen · "+portions+"p":cookFromFrozen?"❄️ from frozen":portions+" people"}</div>}
               </div>
             </div>
@@ -3412,7 +3418,7 @@ function App(){
                 </div>
               ):(
                 <button onClick={function(){
-                  var mins=isSteak&&oc.mode==="GRILL"?parseInt(steakTime(doneness,oc.temp)):parseInt(oc.time);
+                  var mins=isSteak&&oc.mode==="GRILL"?parseInt(weightAdjustedTime(steakTime(doneness,oc.temp),weightG,stdWeightG)):isWeighted?parseInt(weightAdjustedTime(wfPortionTime,weightG,stdWeightG)):parseInt(oc.time);
                   if(isNaN(mins)||mins<=0)mins=10;
                   setTimerSecs(mins*60);setTimerTotal(mins*60);setTimerActive(true);
                 }} style={{background:t.tglAct,border:"none",borderRadius:8,padding:"5px 12px",fontSize:11,fontWeight:700,color:"#FFF"}}>
@@ -3437,9 +3443,29 @@ function App(){
               <div style={{marginTop:9,background:t.stIn,borderRadius:8,padding:"9px 11px",border:"1px solid "+t.stBor}}>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
                   <div><div style={{fontSize:10,color:t.lbl,marginBottom:2}}>Internal temp</div><div style={{fontSize:13,fontWeight:800,color:getTCol(oc.temp)}}>{getDone(doneness,unit).temp}</div><div style={{fontSize:10,color:t.sub,marginTop:1}}>{getDone(doneness,unit).desc}</div></div>
-                  <div><div style={{fontSize:10,color:t.lbl,marginBottom:2}}>Cook time</div><div style={{fontSize:13,fontWeight:800,color:t.stTim}}>{steakTime(doneness,oc.temp)}</div><div style={{fontSize:10,color:t.sub,marginTop:1}}>flip halfway</div></div>
+                  <div><div style={{fontSize:10,color:t.lbl,marginBottom:2}}>Cook time</div><div style={{fontSize:13,fontWeight:800,color:t.stTim}}>{weightAdjustedTime(steakTime(doneness,oc.temp),weightG,stdWeightG)}</div><div style={{fontSize:10,color:t.sub,marginTop:1}}>flip halfway</div></div>
                 </div>
               </div>
+            </div>
+          )}
+          {isWeighted&&(
+            <div style={{background:t.detBg,border:"1px solid "+t.detBor,borderRadius:12,padding:"11px 14px",marginBottom:10}}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:9}}>
+                <div style={{fontSize:10,color:t.lbl,textTransform:"uppercase",letterSpacing:"0.8px"}}>⚖️ Portion weight</div>
+                <div style={{display:"flex",gap:3}}>
+                  {["g","oz","lb"].map(function(u){return(
+                    <button key={u} onClick={function(){setWeightUnit(u);setWeightG(unitPresets(item.name,u).std);}} style={{background:weightUnit===u?t.donActBg:t.donInBg,color:weightUnit===u?t.donActTxt:t.donInTxt,border:"1px solid "+(weightUnit===u?"transparent":t.donInBor),borderRadius:6,padding:"3px 7px",fontSize:10,fontWeight:700,transition:"all 0.15s"}}>{u}</button>
+                  );})}                
+                </div>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:5,marginBottom:4}}>
+                {weightPresetGs.map(function(g){return(
+                  <button key={g} onClick={function(){setWeightG(g);}} style={{background:weightG===g?t.donActBg:t.donInBg,color:weightG===g?t.donActTxt:t.donInTxt,border:"1px solid "+(weightG===g?"transparent":t.donInBor),borderRadius:8,padding:"5px 2px",fontSize:10,fontWeight:700,transition:"all 0.15s"}}>{fmtWeight(g,weightUnit)}</button>
+                );})}
+              </div>
+              {weightG!==stdWeightG&&(
+                <div style={{marginTop:8,fontSize:11,color:t.sub}}>⏱ Times adjusted for {fmtWeight(weightG,weightUnit)} — base is {fmtWeight(stdWeightG,weightUnit)}</div>
+              )}
             </div>
           )}
 
@@ -4372,6 +4398,127 @@ ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(
 
 
 
+
+
+
+// ── WEIGHT-BASED TIMING ─────────────────────────────────────────────────────
+var WEIGHTED_CUTS = {
+  // Steaks (std 200g)
+  "Fillet steak":1,"New York strip":1,"Ribeye steak":1,"Sirloin steak":1,
+  "Rump steak":1,"Skirt steak":1,"Flat iron steak":1,"Bavette steak":1,
+  "Denver steak":1,"Picanha steak":1,"Onglet (hanger steak)":1,
+  "Flank steak":1,"Feather blade steak":1,"Wagyu sirloin":1,
+  "Bavette (flap steak)":1,"Minute steak":1,"Venison steaks":1,
+  "Chateaubriand":1,"T-bone steak":1,"Porterhouse steak":1,
+  "Tomahawk steak":1,"Cote de boeuf":1,
+  // Burgers (std 150g)
+  "Beef burgers":1,"Smash burgers":1,"Chicken burgers":1,"Turkey burgers":1,
+  // Chicken (std 200g)
+  "Chicken breast (boneless)":1,"Chicken thighs (boneless)":1,
+  "Chicken thighs (bone-in)":1,"Turkey breast steaks":1,
+  "Duck breast":1,"Pigeon breasts":1,"Pheasant breast":1,
+  // Lamb (std 200g)
+  "Lamb chops":1,"Lamb cutlets":1,"Lamb leg steaks":1,
+  "Lamb sirloin chops":1,"Lamb rump":1,
+  // Pork (std 200g)
+  "Pork chops":1,"Pork shoulder steaks":1,"Pork loin steaks":1,
+  "Pork fillet medallions":1,
+};
+
+// Returns weight presets for an item: [{label, g, stdG}]
+// Raw gram presets per cut type (unit-agnostic)
+function getWeightPresets(name) {
+  var burgers = ["Beef burgers","Smash burgers","Chicken burgers","Turkey burgers"];
+  var thick   = ["Tomahawk steak","Cote de boeuf","Chateaubriand","T-bone steak","Porterhouse steak"];
+  var isBurger = burgers.indexOf(name) >= 0;
+  var isThick  = thick.indexOf(name) >= 0;
+  if (isBurger) return {std:150, presets:[85,113,142,170,198,227]};
+  if (isThick)  return {std:500, presets:[340,454,567,680,794,907]};
+  return {std:200, presets:[113,142,170,198,227,255,283,340]};
+}
+
+// Format a gram value in the chosen unit with clean labels
+function fmtWeight(g, unit) {
+  if (unit === "oz") {
+    if (g === 57)  return "2oz";
+    if (g === 85)  return "3oz";
+    if (g === 113) return "4oz";
+    if (g === 142) return "5oz";
+    if (g === 170) return "6oz";
+    if (g === 198) return "7oz";
+    if (g === 227) return "8oz";
+    if (g === 255) return "9oz";
+    if (g === 283) return "10oz";
+    if (g === 312) return "11oz";
+    if (g === 340) return "12oz";
+    if (g === 369) return "13oz";
+    if (g === 397) return "14oz";
+    if (g === 425) return "15oz";
+    if (g === 454) return "16oz";
+    if (g === 567) return "20oz";
+    if (g === 680) return "24oz";
+    if (g === 794) return "28oz";
+    if (g === 907) return "32oz";
+    return Math.round(g / 28.3495) + "oz";
+  }
+  if (unit === "lb") {
+    if (g === 57)  return "⅛lb";
+    if (g === 85)  return "3oz";
+    if (g === 113) return "¼lb";
+    if (g === 142) return "5oz";
+    if (g === 170) return "⅜lb";
+    if (g === 198) return "7oz";
+    if (g === 227) return "½lb";
+    if (g === 255) return "9oz";
+    if (g === 283) return "⅝lb";
+    if (g === 312) return "11oz";
+    if (g === 340) return "¾lb";
+    if (g === 369) return "13oz";
+    if (g === 397) return "⅞lb";
+    if (g === 425) return "15oz";
+    if (g === 454) return "1lb";
+    if (g === 567) return "1¼lb";
+    if (g === 680) return "1½lb";
+    if (g === 794) return "1¾lb";
+    if (g === 907) return "2lb";
+    var lb = g / 453.592;
+    return lb.toFixed(1) + "lb";
+  }
+  return g + "g";
+}
+
+// Map gram presets to the chosen unit with friendly values
+function unitPresets(name, unit) {
+  var burgers = ["Beef burgers","Smash burgers","Chicken burgers","Turkey burgers"];
+  var thick   = ["Tomahawk steak","Cote de boeuf","Chateaubriand","T-bone steak","Porterhouse steak"];
+  var isBurger = burgers.indexOf(name) >= 0;
+  var isThick  = thick.indexOf(name) >= 0;
+  if (unit === "oz") {
+    if (isBurger) return {std:142, presets:[85,113,142,170,198,227]};    // 3,4,5,6,7,8oz
+    if (isThick)  return {std:454, presets:[283,340,397,454,567,680,794,907]}; // 10,12,14,16,20,24,28,32oz
+    return         {std:170, presets:[113,142,170,198,227,255,283,340]}; // 4,5,6,7,8,9,10,12oz
+  }
+  if (unit === "lb") {
+    if (isBurger) return {std:142, presets:[113,142,170,227,340,454]};   // ¼,5oz,⅜,½,¾,1lb
+    if (isThick)  return {std:454, presets:[340,454,567,680,794,907]};   // ¾,1,1¼,1½,1¾,2lb
+    return         {std:227, presets:[113,170,227,283,340,454,567,680]}; // ¼,⅜,½,⅝,¾,1,1¼,1½lb
+  }
+  // grams
+  if (isBurger) return {std:150, presets:[85,113,142,170,198,227]};      // 85-227g
+  if (isThick)  return {std:500, presets:[340,454,567,680,794,907]};     // 340-900g
+  return         {std:200, presets:[113,142,170,198,227,255,283,340]};   // 113-340g
+}
+
+// Scale cook time by weight using sqrt scaling (heavier = longer but not linearly)
+function weightAdjustedTime(timeStr, weightG, stdG) {
+  if (!timeStr || timeStr === "See doneness") return timeStr;
+  var parsed = parseTimeMins(timeStr);
+  var scale = Math.sqrt(weightG / stdG);
+  var minT = Math.round(parsed[0] * scale);
+  var maxT = Math.round(parsed[1] * scale);
+  if (minT === maxT) return minT + " mins";
+  return minT + "-" + maxT + " mins";
+}
 
 
 </script>
